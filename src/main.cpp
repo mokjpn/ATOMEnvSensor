@@ -3,13 +3,13 @@
 #include <PubSubClient.h>
 #include <Wire.h>
 #include <Adafruit_Sensor.h>
-#include <Adafruit_BMP280.h>
+#include "QMP6988.h"
 #include <Adafruit_SHT31.h>
 #include "secrets.h"
 
 // ENV3 Unit sensors (connected via I2C)
 Adafruit_SHT31 sht31;
-Adafruit_BMP280 bmp;
+QMP6988 qmp6988;
 
 // WiFi and MQTT clients
 WiFiClient wifiClient;
@@ -66,19 +66,9 @@ void setup() {
   }
   Serial.println("SHT31 sensor initialized");
   
-  // Initialize BMP280 sensor (Pressure and Temperature)
-  if (!bmp.begin(0x76)) {
-    Serial.println("Could not find BMP280 sensor!");
-    while (1) delay(10);
-  }
-  Serial.println("BMP280 sensor initialized");
-  
-  // Configure BMP280
-  bmp.setSampling(Adafruit_BMP280::MODE_NORMAL,
-                  Adafruit_BMP280::SAMPLING_X2,
-                  Adafruit_BMP280::SAMPLING_X16,
-                  Adafruit_BMP280::FILTER_X16,
-                  Adafruit_BMP280::STANDBY_MS_500);
+  // Initialize QMP6988 sensor (Pressure and Temperature)
+  qmp6988.init();
+  Serial.println("QMP6988 sensor initialized");
   
   // Setup WiFi
   setupWiFi();
@@ -106,7 +96,7 @@ void loop() {
     // Read sensor data
     float temperature = sht31.readTemperature();
     float humidity = sht31.readHumidity();
-    float pressure = bmp.readPressure() / 100.0F; // Convert Pa to hPa
+    float pressure = qmp6988.calcPressure() / 100.0F; // Convert Pa to hPa
     
     // Check if readings are valid
     if (isnan(temperature) || isnan(humidity) || isnan(pressure)) {
