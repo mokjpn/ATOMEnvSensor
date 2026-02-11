@@ -39,3 +39,12 @@
 
 # debug information files
 *.dwo
+
+# PlatformIO
+.pio
+.vscode
+.clang_complete
+.gcc-flags.json
+
+# Secrets file (contains WiFi and MQTT credentials)
+include/secrets.h
