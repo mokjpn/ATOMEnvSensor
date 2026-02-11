@@ -67,7 +67,10 @@ void setup() {
   Serial.println("SHT31 sensor initialized");
   
   // Initialize QMP6988 sensor (Pressure and Temperature)
-  qmp6988.init();
+  if (!qmp6988.init()) {
+    Serial.println("Could not find QMP6988 sensor!");
+    while (1) delay(10);
+  }
   Serial.println("QMP6988 sensor initialized");
   
   // Setup WiFi
