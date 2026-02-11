@@ -49,14 +49,15 @@ void reconnectMQTT() {
 
 void setup() {
   auto cfg = M5.config();
+  cfg.serial_baudrate = 115200;
   M5.begin(cfg);
-  
-  Serial.begin(115200);
+
   delay(1000);
   Serial.println("M5Stack ATOM S3 + ENV3 Unit");
   
   // Initialize I2C for ENV3 Unit
-  Wire.begin(2, 1); // SDA=GPIO2, SCL=GPIO1 for ATOM S3
+  // Wire.begin(2, 1); // SDA=GPIO2, SCL=GPIO1 for ATOM S3
+  Wire.begin(8, 5) ; // SDA=GPIO8, SCL=GPIO5 for ATOM S3 with ToUnit Base
   
   // Initialize SHT31 sensor (Temperature and Humidity)
   if (!sht31.begin(0x44)) {
