@@ -2,7 +2,6 @@
 #include <WiFi.h>
 #include <PubSubClient.h>
 #include <Wire.h>
-#include <Adafruit_Sensor.h>
 #include "QMP6988.h"
 #include <Adafruit_SHT31.h>
 #include "secrets.h"
