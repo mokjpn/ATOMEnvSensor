@@ -109,8 +109,8 @@ void loop() {
     float pressure = bmp.readPressure() / 100.0F; // Convert Pa to hPa
     
     // Check if readings are valid
-    if (isnan(temperature) || isnan(humidity)) {
-      Serial.println("Failed to read from SHT31 sensor!");
+    if (isnan(temperature) || isnan(humidity) || isnan(pressure)) {
+      Serial.println("Failed to read from sensors!");
       return;
     }
     
