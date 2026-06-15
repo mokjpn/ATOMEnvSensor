@@ -17,34 +17,79 @@ PubSubClient mqttClient(wifiClient);
 // Timing
 unsigned long lastPublishTime = 0;
 const unsigned long PUBLISH_INTERVAL = 10000; // 10 seconds
+const unsigned long WIFI_CONNECT_TIMEOUT = 15000; // 15 seconds
+const unsigned long WIFI_RETRY_INTERVAL = 30000; // 30 seconds
+const unsigned long MQTT_RETRY_INTERVAL = 5000; // 5 seconds
 
-void setupWiFi() {
+unsigned long lastWiFiRetryTime = 0;
+unsigned long lastMQTTRetryTime = 0;
+
+bool connectWiFi() {
   Serial.println("Connecting to WiFi...");
+  WiFi.disconnect(true);
+  delay(100);
+  WiFi.mode(WIFI_STA);
+  WiFi.setAutoReconnect(true);
+  WiFi.persistent(false);
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-  
-  while (WiFi.status() != WL_CONNECTED) {
+
+  unsigned long startTime = millis();
+  while (WiFi.status() != WL_CONNECTED && millis() - startTime < WIFI_CONNECT_TIMEOUT) {
     delay(500);
     Serial.print(".");
+    M5.update();
   }
-  
+
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.println("\nWiFi connection timed out");
+    return false;
+  }
+
   Serial.println("\nWiFi connected");
   Serial.print("IP address: ");
   Serial.println(WiFi.localIP());
+  return true;
 }
 
-void reconnectMQTT() {
-  while (!mqttClient.connected()) {
-    Serial.print("Attempting MQTT connection...");
-    
-    if (mqttClient.connect(MQTT_CLIENT_ID, MQTT_USER, MQTT_PASSWORD)) {
-      Serial.println("connected");
-    } else {
-      Serial.print("failed, rc=");
-      Serial.print(mqttClient.state());
-      Serial.println(" retrying in 5 seconds");
-      delay(5000);
-    }
+bool ensureWiFiConnected(unsigned long currentTime) {
+  if (WiFi.status() == WL_CONNECTED) {
+    return true;
   }
+
+  if (currentTime - lastWiFiRetryTime < WIFI_RETRY_INTERVAL) {
+    return false;
+  }
+
+  lastWiFiRetryTime = currentTime;
+  Serial.println("WiFi disconnected; retrying");
+  mqttClient.disconnect();
+  return connectWiFi();
+}
+
+bool reconnectMQTT(unsigned long currentTime) {
+  if (mqttClient.connected()) {
+    return true;
+  }
+
+  if (WiFi.status() != WL_CONNECTED) {
+    return false;
+  }
+
+  if (currentTime - lastMQTTRetryTime < MQTT_RETRY_INTERVAL) {
+    return false;
+  }
+
+  lastMQTTRetryTime = currentTime;
+  Serial.print("Attempting MQTT connection...");
+
+  if (mqttClient.connect(MQTT_CLIENT_ID, MQTT_USER, MQTT_PASSWORD)) {
+    Serial.println("connected");
+    return true;
+  }
+
+  Serial.print("failed, rc=");
+  Serial.println(mqttClient.state());
+  return false;
 }
 
 void setup() {
@@ -73,11 +118,12 @@ void setup() {
   }
   Serial.println("QMP6988 sensor initialized");
   
-  // Setup WiFi
-  setupWiFi();
-  
   // Setup MQTT
   mqttClient.setServer(MQTT_BROKER, MQTT_PORT);
+  mqttClient.setSocketTimeout(5);
+
+  // Setup WiFi
+  connectWiFi();
   
   Serial.println("Setup complete!");
 }
@@ -85,16 +131,21 @@ void setup() {
 void loop() {
   M5.update();
   
-  // Ensure MQTT connection
-  if (!mqttClient.connected()) {
-    reconnectMQTT();
+  unsigned long currentTime = millis();
+
+  // Keep network maintenance non-blocking so the device can recover after outages.
+  if (ensureWiFiConnected(currentTime) && reconnectMQTT(currentTime)) {
+    mqttClient.loop();
   }
-  mqttClient.loop();
   
   // Publish sensor data every 10 seconds
-  unsigned long currentTime = millis();
   if (currentTime - lastPublishTime >= PUBLISH_INTERVAL) {
     lastPublishTime = currentTime;
+
+    if (WiFi.status() != WL_CONNECTED || !mqttClient.connected()) {
+      Serial.println("Network unavailable; skipping publish");
+      return;
+    }
     
     // Read sensor data
     float temperature = sht31.readTemperature();
